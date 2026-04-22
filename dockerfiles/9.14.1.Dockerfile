@@ -6,7 +6,7 @@ ARG LLVM_VERSION=20
 ARG GHC_VERSION_BUILD=${GHC_VERSION}
 ARG CABAL_VERSION_BUILD=${CABAL_VERSION}
 
-FROM ghcr.io/loong64/ghc/ghc-musl:9.12.2-linux-loong64 AS bootstrap
+FROM ghcr.io/loong64/ghc/ghc-musl:9.12.2 AS bootstrap
 
 RUN case "$(uname -m)" in \
     x86_64) linker="gold" ;; \
@@ -18,12 +18,15 @@ RUN case "$(uname -m)" in \
     automake \
     binutils${linker:+-}${linker} \
     build-base \
+    clang20 \
     coreutils \
     cpio \
     curl \
     gnupg \
     linux-headers \
     libffi-dev \
+    lld20 \
+    llvm20 \
     ncurses-dev \
     perl \
     python3 \
@@ -157,7 +160,23 @@ RUN cd /tmp \
     ./configure --disable-ld-override; \
   fi \
   && make install \
+  && if [ "$(uname -m)" = "loongarch64" ]; then \
+    tarGzArch="loong64"; \
+  else \
+    tarGzArch="$(uname -m)"; \
+  fi \
+  ## Install Stack
   && cd /tmp \
+  && if [ "$tarGzArch" = "riscv64" ] || [ "$tarGzArch" = "loong64" ]; then \
+    curl -sSLO https://gitlab.b-data.ch/commercialhaskell/stack/-/releases/v"$STACK_VERSION"/downloads/builds/stack-"$STACK_VERSION"-linux-"$tarGzArch".tar.gz; \
+    curl -sSLO https://gitlab.b-data.ch/commercialhaskell/stack/-/releases/v"$STACK_VERSION"/downloads/builds/stack-"$STACK_VERSION"-linux-"$tarGzArch".tar.gz.sha256; \
+  else \
+    curl -sSLO https://github.com/commercialhaskell/stack/releases/download/v"$STACK_VERSION"/stack-"$STACK_VERSION"-linux-"$tarGzArch".tar.gz; \
+    curl -sSLO https://github.com/commercialhaskell/stack/releases/download/v"$STACK_VERSION"/stack-"$STACK_VERSION"-linux-"$tarGzArch".tar.gz.sha256; \
+  fi \
+  && sha256sum -cs stack-"$STACK_VERSION"-linux-"$tarGzArch".tar.gz.sha256 \
+  && tar -xzf stack-"$STACK_VERSION"-linux-"$tarGzArch".tar.gz \
+  && mv stack-"$STACK_VERSION"-linux-"$tarGzArch"/stack /usr/local/bin/stack \
   ## Clean up
   && rm -rf /tmp/*
 
